@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -26,22 +27,38 @@ func main() {
 	defer connection.Close()
 
 	buf := make([]byte, 1024)
-	len, err := connection.Read(buf)
+	_, err = connection.Read(buf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while making buffer: %s", err)
 		os.Exit(1)
 	}
 
 	myString := string(buf)
-	fmt.Println("String ", myString)
-	fmt.Println("len ", len)
+	index := strings.Index(myString, "\r\n")
+	firstLineOfString := myString[:index]
+	firstLineParts := strings.Split(firstLineOfString, " ")
 
-	responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
-		"Content-Type: text/html; charset=UTF-8\r\n\r\n"
-	_, err = connection.Write([]byte(responseHeaders))
-	if err != nil {
-		fmt.Println("Error writing HTTP header: ", err.Error())
+	if len(firstLineParts) != 3 {
+		fmt.Println("Error writing parsing string: ", firstLineOfString)
 		os.Exit(1)
+	}
+
+	if firstLineParts[1] == "/" {
+		responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
+		_, err = connection.Write([]byte(responseHeaders))
+		if err != nil {
+			fmt.Println("Error writing HTTP header: ", err.Error())
+			os.Exit(1)
+		}
+	} else {
+		responseHeaders := "HTTP/1.1 404 Not Found\r\n\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
+		_, err = connection.Write([]byte(responseHeaders))
+		if err != nil {
+			fmt.Println("Error writing HTTP header: ", err.Error())
+			os.Exit(1)
+		}
 	}
 
 }
