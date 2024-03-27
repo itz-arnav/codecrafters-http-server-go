@@ -67,7 +67,7 @@ func handleConnection(connection net.Conn) {
 		fileName := firstLineParts[1][7:]
 		for _, file := range files {
 			if file.Name() == fileName {
-				fileFullPath := fileName + "." + file.Type().String()
+				fileFullPath := fileName + "." + file.Type().Type().String()
 				file, err := os.Open(fileFullPath)
 				if err != nil {
 					fmt.Println("Invalid permissions to open the file.")
