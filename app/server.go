@@ -54,6 +54,14 @@ func main() {
 			fmt.Println("Error writing HTTP header: ", err.Error())
 			os.Exit(1)
 		}
+	} else if firstLineParts[1] == "/" {
+		responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
+			"Content-Type: text/plain\r\n\r\n"
+		_, err = connection.Write([]byte(responseHeaders))
+		if err != nil {
+			fmt.Println("Error writing HTTP header: ", err.Error())
+			os.Exit(1)
+		}
 	} else {
 		responseHeaders := "HTTP/1.1 404 Not Found\r\n\r\n" +
 			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
