@@ -67,9 +67,11 @@ func handleConnection(connection net.Conn) {
 		fileName := firstLineParts[1][7:]
 		for _, file := range files {
 			if file.Name() == fileName {
-				file, err := os.Open(fileName + "." + file.Type().String())
+				fileFullPath := fileName + "." + file.Type().String()
+				file, err := os.Open(fileFullPath)
 				if err != nil {
 					fmt.Println("Invalid permissions to open the file.")
+					fmt.Println("File Path: ", fileFullPath)
 					os.Exit(1)
 				}
 				defer file.Close()
@@ -81,7 +83,7 @@ func handleConnection(connection net.Conn) {
 				}
 				contentString := string(content)
 				responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
-					"Content-Type: application/octet-stream\r\n\r\n" + contentString + "\r\n\r\n"; 
+					"Content-Type: application/octet-stream\r\n\r\n" + contentString + "\r\n\r\n"
 				_, err = connection.Write([]byte(responseHeaders))
 				if err != nil {
 					fmt.Println("Error writing HTTP header: ", err.Error())
