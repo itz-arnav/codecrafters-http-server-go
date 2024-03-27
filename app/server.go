@@ -64,7 +64,7 @@ func handleConnection(connection net.Conn) {
 			os.Exit(1)
 		}
 
-		fileName := firstLineParts[1][7:]
+		fileName := directoryPath + "/" + firstLineParts[1][7:]
 		for _, file := range files {
 			if file.Name() == fileName {
 				file, err := os.Open(fileName)
