@@ -47,8 +47,9 @@ func main() {
 	if strings.Contains(firstLineParts[1], "/echo/") {
 		contentString := firstLineParts[1][6:]
 		contentLength := strconv.Itoa(len(contentString))
-		responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
-			"Content-Type: text/plain\r\n\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n\r\n"
+		responseHeaders := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n"
+
 		_, err = connection.Write([]byte(responseHeaders))
 		if err != nil {
 			fmt.Println("Error writing HTTP header: ", err.Error())
