@@ -35,8 +35,8 @@ func main() {
 	}
 
 	myString := string(buf)
-	index := strings.Index(myString, "\r\n")
-	firstLineOfString := myString[:index]
+	inputHeaderStringList := strings.Split(myString, "\r\n")
+	firstLineOfString := inputHeaderStringList[0]
 	firstLineParts := strings.Split(firstLineOfString, " ")
 
 	if len(firstLineParts) != 3 {
@@ -50,6 +50,16 @@ func main() {
 		responseHeaders := "HTTP/1.1 200 OK\r\n" +
 			"Content-Type: text/plain\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n"
 
+		_, err = connection.Write([]byte(responseHeaders))
+		if err != nil {
+			fmt.Println("Error writing HTTP header: ", err.Error())
+			os.Exit(1)
+		}
+	} else if firstLineParts[1] == "/user-agent" {
+		contentString := strings.Split(inputHeaderStringList[2], ": ")[1]
+		contentLength := strconv.Itoa(len(contentString))
+		responseHeaders := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: text/plain\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n"
 		_, err = connection.Write([]byte(responseHeaders))
 		if err != nil {
 			fmt.Println("Error writing HTTP header: ", err.Error())
