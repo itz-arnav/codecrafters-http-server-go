@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -49,6 +50,53 @@ func handleConnection(connection net.Conn) {
 			fmt.Println("Error writing HTTP header: ", err.Error())
 			os.Exit(1)
 		}
+	} else if strings.Contains(firstLineParts[1], "/files/") {
+
+		if len(os.Args) != 3 {
+			fmt.Println("Invalid command-line arguments provided.")
+			os.Exit(1)
+		}
+
+		directoryPath := os.Args[2]
+		files, err := os.ReadDir(directoryPath)
+		if err != nil {
+			fmt.Println("Invalid permissions to read the directory.")
+			os.Exit(1)
+		}
+
+		fileName := firstLineParts[1][7:]
+		for _, file := range files {
+			if file.Name() == fileName {
+				file, err := os.Open(fileName)
+				if err != nil {
+					fmt.Println("Invalid permissions to open the file.")
+					os.Exit(1)
+				}
+				defer file.Close()
+
+				content, err := io.ReadAll(file)
+				if err != nil {
+					fmt.Println("Failed to read the file")
+					os.Exit(1)
+				}
+				contentString := string(content)
+				responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
+					"Content-Type: application/octet-stream\r\n\r\n" + contentString + "\r\n\r\n"; 
+				_, err = connection.Write([]byte(responseHeaders))
+				if err != nil {
+					fmt.Println("Error writing HTTP header: ", err.Error())
+					os.Exit(1)
+				}
+			}
+		}
+		responseHeaders := "HTTP/1.1 404 Not Found\r\n\r\n" +
+			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
+		_, err = connection.Write([]byte(responseHeaders))
+		if err != nil {
+			fmt.Println("Error writing HTTP header: ", err.Error())
+			os.Exit(1)
+		}
+
 	} else if firstLineParts[1] == "/" {
 		responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
 			"Content-Type: text/plain\r\n\r\n"
