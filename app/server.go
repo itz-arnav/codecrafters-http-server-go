@@ -83,6 +83,10 @@ func handleConnection(connection net.Conn) {
 				}
 				contentString := string(content)
 				contentLength := strconv.Itoa(len(contentString))
+
+				fmt.Println("Content Length: ", contentLength)
+				fmt.Println("Content String: ", contentString)
+
 				responseHeaders := "HTTP/1.1 200 OK\r\n" +
 					"Content-Type: application/octet-stream\r\n" + contentLength + "\r\n" + contentString + "\r\n\r\n"
 				_, err = connection.Write([]byte(responseHeaders))
