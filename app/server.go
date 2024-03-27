@@ -26,11 +26,15 @@ func main() {
 	defer connection.Close()
 
 	buf := make([]byte, 1024)
-	_, err = connection.Read(buf)
+	len, err := connection.Read(buf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while making buffer: %s", err)
 		os.Exit(1)
 	}
+
+	myString := string(buf)
+	fmt.Println("String ", myString)
+	fmt.Println("len ", len)
 
 	responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n"
