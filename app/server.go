@@ -64,13 +64,14 @@ func handleConnection(connection net.Conn) {
 			os.Exit(1)
 		}
 
-		fileName := directoryPath + "/" + firstLineParts[1][7:]
+		fileName := firstLineParts[1][7:]
 		for _, file := range files {
 			if file.Name() == fileName {
-				file, err := os.Open(fileName)
+				filePath := directoryPath + "/" + file.Name()
+				file, err := os.Open(filePath)
 				if err != nil {
 					fmt.Println("Invalid permissions to open the file.")
-					fmt.Println("File Path: ", fileName)
+					fmt.Println("File Path: ", filePath)
 					os.Exit(1)
 				}
 				defer file.Close()
