@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+func handlePostFile(connection net.Conn, inputHeaderStringList []string) {
+	firstLineOfString := inputHeaderStringList[0]
+	firstLineParts := strings.Split(firstLineOfString, " ")
+	fileName := firstLineParts[1][7:]
+	fmt.Println("Parsed FileName: ", fileName)
+	
+	for _, line := range inputHeaderStringList {
+		fmt.Println(line)
+	}
+}
 func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
@@ -51,6 +61,11 @@ func handleConnection(connection net.Conn) {
 			os.Exit(1)
 		}
 	} else if strings.Contains(firstLineParts[1], "/files/") {
+
+		if firstLineParts[0] == "POST" {
+			handlePostFile(connection, inputHeaderStringList);
+			return
+		}
 
 		if len(os.Args) != 3 {
 			fmt.Println("Invalid command-line arguments provided.")
