@@ -9,11 +9,10 @@ import (
 	"strings"
 )
 
-func handlePostFile(connection net.Conn, inputHeaderStringList []string, directoryPath string) {
+func handlePostFile(connection net.Conn, inputHeaderStringList []string, directoryPath string) error {
 	firstLineOfString := inputHeaderStringList[0]
 	firstLineParts := strings.Split(firstLineOfString, " ")
 	fileName := firstLineParts[1][7:]
-	fmt.Println("Parsed FileName: ", fileName)
 
 	resultFileContent := strings.Join(inputHeaderStringList[6:], " ")
 	resultFileContent = strings.ReplaceAll(resultFileContent, "\x00", "")
@@ -22,151 +21,136 @@ func handlePostFile(connection net.Conn, inputHeaderStringList []string, directo
 
 	file, err := os.Create(directoryPath + "/" + fileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while making file")
-		os.Exit(1)
+		return fmt.Errorf("error while creating file: %w", err)
 	}
 	defer file.Close()
 
-	_, err = file.WriteString(resultFileContent)
-	if err != nil {
-		fmt.Println("Error writing writing in file")
-		os.Exit(1)
+	if _, err := file.WriteString(resultFileContent); err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
 	}
 
-	responseHeaders := "HTTP/1.1 201 OK\r\n\r\n" +
-		"Content-Type: text/plain\r\n\r\n"
-	_, err = connection.Write([]byte(responseHeaders))
-	if err != nil {
-		fmt.Println("Error writing HTTP header: ", err.Error())
-		os.Exit(1)
+	responseHeaders := "HTTP/1.1 201 OK\r\n\r\nContent-Type: text/plain\r\n\r\n"
+	if _, err := connection.Write([]byte(responseHeaders)); err != nil {
+		return fmt.Errorf("error writing HTTP headers: %w", err)
 	}
+	return nil
 }
+
 func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
 	buf := make([]byte, 1024)
-	_, err := connection.Read(buf)
+	n, err := connection.Read(buf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while making buffer: %s", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "error while reading from connection: %s", err)
+		return
+	}
+	myString := string(buf[:n])
+
+	inputHeaderStringList := strings.Split(myString, "\r\n")
+	if len(inputHeaderStringList) < 1 {
+		fmt.Println("Error: received empty request")
+		return
 	}
 
-	myString := string(buf)
-	inputHeaderStringList := strings.Split(myString, "\r\n")
 	firstLineOfString := inputHeaderStringList[0]
 	firstLineParts := strings.Split(firstLineOfString, " ")
-
 	if len(firstLineParts) != 3 {
-		fmt.Println("Error writing parsing string: ", firstLineOfString)
-		os.Exit(1)
+		fmt.Println("Error parsing request line: ", firstLineOfString)
+		return
 	}
 
-	if strings.Contains(firstLineParts[1], "/echo/") {
-		contentString := firstLineParts[1][6:]
-		contentLength := strconv.Itoa(len(contentString))
-		responseHeaders := "HTTP/1.1 200 OK\r\n" +
-			"Content-Type: text/plain\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n"
+	// Handle different request types
+	switch {
+	case strings.Contains(firstLineParts[1], "/echo/"):
+		handleEchoRequest(connection, firstLineParts)
+	case firstLineParts[1] == "/user-agent":
+		handleUserAgentRequest(connection, inputHeaderStringList)
+	case strings.Contains(firstLineParts[1], "/files/"):
+		handleFileRequest(connection, firstLineParts, inputHeaderStringList)
+	case firstLineParts[1] == "/":
+		sendResponse(connection, "HTTP/1.1 200 OK\r\n\r\nContent-Type: text/plain\r\n\r\n")
+	default:
+		sendResponse(connection, "HTTP/1.1 404 Not Found\r\n\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n")
+	}
+}
 
-		_, err = connection.Write([]byte(responseHeaders))
-		if err != nil {
-			fmt.Println("Error writing HTTP header: ", err.Error())
-			os.Exit(1)
-		}
-	} else if firstLineParts[1] == "/user-agent" {
-		contentString := strings.Split(inputHeaderStringList[2], ": ")[1]
-		contentLength := strconv.Itoa(len(contentString))
-		responseHeaders := "HTTP/1.1 200 OK\r\n" +
-			"Content-Type: text/plain\r\n" + "Content-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n"
-		_, err = connection.Write([]byte(responseHeaders))
-		if err != nil {
-			fmt.Println("Error writing HTTP header: ", err.Error())
-			os.Exit(1)
-		}
-	} else if strings.Contains(firstLineParts[1], "/files/") {
+func handleEchoRequest(connection net.Conn, firstLineParts []string) {
+	contentString := firstLineParts[1][6:]
+	sendTextResponse(connection, contentString, 200)
+}
 
-		if len(os.Args) != 3 {
-			fmt.Println("Invalid command-line arguments provided.")
-			os.Exit(1)
-		}
+func handleUserAgentRequest(connection net.Conn, inputHeaderStringList []string) {
+	contentString := strings.Split(inputHeaderStringList[2], ": ")[1]
+	sendTextResponse(connection, contentString, 200)
+}
 
-		directoryPath := os.Args[2]
-		files, err := os.ReadDir(directoryPath)
-		if err != nil {
-			fmt.Println("Invalid permissions to read the directory.")
-			os.Exit(1)
-		}
+func handleFileRequest(connection net.Conn, firstLineParts []string, inputHeaderStringList []string) {
+	if len(os.Args) != 3 {
+		fmt.Println("Invalid command-line arguments provided.")
+		return
+	}
 
-		if firstLineParts[0] == "POST" {
-			handlePostFile(connection, inputHeaderStringList, directoryPath)
-			return
+	directoryPath := os.Args[2]
+	if firstLineParts[0] == "POST" {
+		if err := handlePostFile(connection, inputHeaderStringList, directoryPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to handle POST file: %s", err)
+			sendResponse(connection, "HTTP/1.1 500 Internal Server Error\r\n\r\nContent-Type: text/plain\r\n\r\n")
 		}
+		return
+	}
 
-		fileName := firstLineParts[1][7:]
-		for _, file := range files {
-			if file.Name() == fileName {
-				filePath := directoryPath + "/" + file.Name()
-				file, err := os.Open(filePath)
-				if err != nil {
-					fmt.Println("Invalid permissions to open the file.")
-					fmt.Println("File Path: ", filePath)
-					os.Exit(1)
-				}
-				defer file.Close()
+	// Handle GET file request
+	fileName := firstLineParts[1][7:]
+	filePath := directoryPath + "/" + fileName
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		sendResponse(connection, "HTTP/1.1 404 Not Found\r\n\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n")
+		return
+	}
 
-				content, err := io.ReadAll(file)
-				if err != nil {
-					fmt.Println("Failed to read the file")
-					os.Exit(1)
-				}
-				contentString := string(content)
-				contentLength := strconv.Itoa(len(contentString))
+	sendFileResponse(connection, filePath)
+}
 
-				fmt.Println("Content Length: ", contentLength)
-				fmt.Println("Content String: ", contentString)
+func sendFileResponse(connection net.Conn, filePath string) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open file: %s", err)
+		sendResponse(connection, "HTTP/1.1 500 Internal Server Error\r\n\r\nContent-Type: text/plain\r\n\r\n")
+		return
+	}
+	defer file.Close()
 
-				responseHeaders := "HTTP/1.1 200 OK\r\n" +
-					"Content-Type: application/octet-stream\r\nContent-Length: " + contentLength + "\r\n\r\n" + contentString + "\r\n\r\n"
-				_, err = connection.Write([]byte(responseHeaders))
-				if err != nil {
-					fmt.Println("Error writing HTTP header: ", err.Error())
-					os.Exit(1)
-				}
-			}
-		}
-		responseHeaders := "HTTP/1.1 404 Not Found\r\n\r\n" +
-			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
-		_, err = connection.Write([]byte(responseHeaders))
-		if err != nil {
-			fmt.Println("Error writing HTTP header: ", err.Error())
-			os.Exit(1)
-		}
+	content, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read file: %s", err)
+		sendResponse(connection, "HTTP/1.1 500 Internal Server Error\r\n\r\nContent-Type: text/plain\r\n\r\n")
+		return
+	}
 
-	} else if firstLineParts[1] == "/" {
-		responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
-			"Content-Type: text/plain\r\n\r\n"
-		_, err = connection.Write([]byte(responseHeaders))
-		if err != nil {
-			fmt.Println("Error writing HTTP header: ", err.Error())
-			os.Exit(1)
-		}
-	} else {
-		responseHeaders := "HTTP/1.1 404 Not Found\r\n\r\n" +
-			"Content-Type: text/html; charset=UTF-8\r\n\r\n"
-		_, err = connection.Write([]byte(responseHeaders))
-		if err != nil {
-			fmt.Println("Error writing HTTP header: ", err.Error())
-			os.Exit(1)
-		}
+	contentString := string(content)
+	contentLength := strconv.Itoa(len(contentString))
+	responseHeaders := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %s\r\n\r\n%s", contentLength, contentString)
+	sendResponse(connection, responseHeaders)
+}
+
+func sendTextResponse(connection net.Conn, contentString string, statusCode int) {
+	contentLength := strconv.Itoa(len(contentString))
+	responseHeaders := fmt.Sprintf("HTTP/1.1 %d OK\r\nContent-Type: text/plain\r\nContent-Length: %s\r\n\r\n%s", statusCode, contentLength, contentString)
+	sendResponse(connection, responseHeaders)
+}
+
+func sendResponse(connection net.Conn, responseHeaders string) {
+	if _, err := connection.Write([]byte(responseHeaders)); err != nil {
+		fmt.Fprintf(os.Stderr, "Error sending response: %s", err)
 	}
 }
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	fmt.Println("Server is starting...")
 
 	server, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
+		fmt.Fprintf(os.Stderr, "Failed to bind to port 4221: %s", err)
 		os.Exit(1)
 	}
 	defer server.Close()
@@ -174,12 +158,10 @@ func main() {
 	for {
 		connection, err := server.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "Error accepting connection: %s", err)
+			continue
 		}
 
-		// Handle each connection concurrently in a new goroutine
 		go handleConnection(connection)
 	}
-
 }
