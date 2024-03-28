@@ -9,14 +9,32 @@ import (
 	"strings"
 )
 
-func handlePostFile(connection net.Conn, inputHeaderStringList []string) {
+func handlePostFile(connection net.Conn, inputHeaderStringList []string, directoryPath string) {
 	firstLineOfString := inputHeaderStringList[0]
 	firstLineParts := strings.Split(firstLineOfString, " ")
 	fileName := firstLineParts[1][7:]
 	fmt.Println("Parsed FileName: ", fileName)
-	
-	for _, line := range inputHeaderStringList {
-		fmt.Println(line)
+
+	resultFileContent := strings.Join(inputHeaderStringList[6:], " ")
+	file, err := os.Create(directoryPath + "/" + fileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error while making file")
+		os.Exit(1)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(resultFileContent)
+	if err != nil {
+		fmt.Println("Error writing writing in file")
+		os.Exit(1)
+	}
+
+	responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
+		"Content-Type: text/plain\r\n\r\n"
+	_, err = connection.Write([]byte(responseHeaders))
+	if err != nil {
+		fmt.Println("Error writing HTTP header: ", err.Error())
+		os.Exit(1)
 	}
 }
 func handleConnection(connection net.Conn) {
@@ -62,11 +80,6 @@ func handleConnection(connection net.Conn) {
 		}
 	} else if strings.Contains(firstLineParts[1], "/files/") {
 
-		if firstLineParts[0] == "POST" {
-			handlePostFile(connection, inputHeaderStringList);
-			return
-		}
-
 		if len(os.Args) != 3 {
 			fmt.Println("Invalid command-line arguments provided.")
 			os.Exit(1)
@@ -77,6 +90,11 @@ func handleConnection(connection net.Conn) {
 		if err != nil {
 			fmt.Println("Invalid permissions to read the directory.")
 			os.Exit(1)
+		}
+
+		if firstLineParts[0] == "POST" {
+			handlePostFile(connection, inputHeaderStringList, directoryPath)
+			return
 		}
 
 		fileName := firstLineParts[1][7:]
