@@ -29,7 +29,7 @@ func handlePostFile(connection net.Conn, inputHeaderStringList []string, directo
 		os.Exit(1)
 	}
 
-	responseHeaders := "HTTP/1.1 200 OK\r\n\r\n" +
+	responseHeaders := "HTTP/1.1 201 OK\r\n\r\n" +
 		"Content-Type: text/plain\r\n\r\n"
 	_, err = connection.Write([]byte(responseHeaders))
 	if err != nil {
