@@ -16,6 +16,9 @@ func handlePostFile(connection net.Conn, inputHeaderStringList []string, directo
 	fmt.Println("Parsed FileName: ", fileName)
 
 	resultFileContent := strings.Join(inputHeaderStringList[6:], " ")
+	resultFileContent = strings.TrimSuffix(resultFileContent, "\n")
+	resultFileContent = strings.TrimSuffix(resultFileContent, "\r")
+
 	file, err := os.Create(directoryPath + "/" + fileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while making file")
