@@ -16,6 +16,7 @@ func handlePostFile(connection net.Conn, inputHeaderStringList []string, directo
 	fmt.Println("Parsed FileName: ", fileName)
 
 	resultFileContent := strings.Join(inputHeaderStringList[6:], " ")
+	resultFileContent = strings.ReplaceAll(resultFileContent, "\x00", "")
 	resultFileContent = strings.TrimSuffix(resultFileContent, "\n")
 	resultFileContent = strings.TrimSuffix(resultFileContent, "\r")
 
